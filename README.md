@@ -150,6 +150,10 @@ ignored. Unknown flags are skipped rather than erroring.
   `$.id` from a create call and feed it into a follow-up activate call). Enables
   login-then-call, create-then-verify, and pagination flows.
 
+## License
+
+MIT — see [LICENSE](LICENSE).
+
 ## Security note
 
 This tool executes whatever curl you paste, against whatever host it names,
