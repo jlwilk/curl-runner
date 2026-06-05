@@ -1,0 +1,10 @@
+services:
+  curl-runner:
+    build: .
+    ports:
+      - "2875:2875"
+    environment:
+      - PORT=2875
+      # Max chars of each response body streamed back to the UI.
+      - MAX_BODY_CHARS=20000
+    restart: unless-stopped
