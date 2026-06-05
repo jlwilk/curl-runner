@@ -12,10 +12,13 @@ CORS headaches the way there would be firing requests straight from a browser.
 ## Features
 
 - **Paste any curl** — `{{placeholders}}` work in the URL, headers, or body.
-- **Variable substitution** — supply values as JSON; runs server-side so there
-  are no CORS limits.
-- **Iterate or repeat** — a JSON *object* repeats the same request; a JSON
-  *array* runs once per element (one request per row of data).
+  Runs server-side, so there are no CORS limits.
+- **Shared variables (chips)** — single values reused across every run (token,
+  base URL) live in a chip bar at the top: **hover to reveal** the value (and a
+  JWT's time-to-expiry), **click to edit**, **+ add** your own.
+- **Per-run data (JSON)** — the data that changes each request. A JSON *object*
+  (or empty) runs once; a JSON *array* runs once per element (one request per
+  row). Data is merged with the shared variables, and wins on a name clash.
 - **Loop & delay** — set a delay between runs and optionally loop forever
   (polling). **Start / Stop** at any time; Stop aborts mid-loop instantly.
 - **Live streaming output** — each response appears as it returns, with status,
@@ -28,9 +31,9 @@ CORS headaches the way there would be firing requests straight from a browser.
   already-expired JWT (so you refresh before getting a wall of 401s).
 - **Auto-save** — your curl, variables, delay, and loop setting persist in the
   browser, so a refresh never wipes a pasted curl.
-- **✦ Analyze a raw browser curl** — one click pulls the `Bearer` token into
-  `{{token}}` (and shows JWT time-to-expiry), and turns JSON body fields and URL
-  query params into `{{variables}}` with example values.
+- **✦ Analyze a raw browser curl** — one click pulls the `Bearer` token into a
+  `{{token}}` chip (with JWT time-to-expiry), and turns JSON body fields and URL
+  query params into `{{variables}}` with example values in the data box.
 - **JSON / CSV upload** — load variables from a `.json` file, or a `.csv` whose
   header row becomes the keys (one object per row).
 - **✦ Prettify & repair** — reformat the variables JSON, and auto-wrap a bare
@@ -72,32 +75,39 @@ Node 20+ required for the non-Docker path.
    in the URL, headers, or body. Or paste a raw curl (e.g. Chrome DevTools'
    "Copy as cURL") and hit **✦ analyze** to templatize it automatically — see
    below.
-2. **variables (JSON)** — provide the values:
-   - An **object** (`{ "id": "1", "token": "abc" }`) runs the *same* request
-     each time. Pair it with **loop forever** to poll an endpoint.
+2. **variables** (top chip bar) — single values shared across every run, like a
+   `token` or `base_url`. Hover a chip to reveal its value (and a JWT's expiry),
+   click to edit, **+ add** to create one. Analyze drops the Bearer token here.
+3. **data (JSON)** — the values that change per request, merged with the shared
+   variables above (data wins on a name clash):
+   - Empty, or an **object** (`{ "id": "1" }`), runs once. Pair it with
+     **loop forever** to poll an endpoint.
    - An **array** (`[ { "id": "1" }, { "id": "2" } ]`) runs **once per element**,
      iterating your data.
    - **Upload** a `.json` file, or a `.csv` whose header row becomes the keys —
      each data row turns into one object in the array. The box shows the loaded
      filename and item count.
-3. **delay (ms)** — wait between runs.
-4. **Start / Stop** — Stop aborts mid-loop immediately.
+4. **delay (ms)** — wait between runs.
+5. **Start / Stop** — Stop aborts mid-loop immediately.
 
 ### Analyze: turn a raw curl into a template
 
 Paste a curl copied from your browser's network tab and click **✦ analyze**. It:
 
-- pulls the `Bearer` token out of the `Authorization` header into `{{token}}`,
-  and shows how long until the JWT expires (and who it's for);
+- pulls the `Bearer` token out of the `Authorization` header into a `{{token}}`
+  chip, and shows how long until the JWT expires (and who it's for);
 - converts each JSON body field into a `{{field}}` placeholder;
 - converts URL query-string values into `{{param}}` placeholders;
-- seeds the variables box with the example values it found.
+- seeds the data box with the example values it found.
 
 So a 30-header browser curl with an inline token and JSON body becomes a clean
-template plus a ready-to-edit variables object in one click. Numbers stay
-numbers, strings stay strings, and Chrome's `$'...'` quoting is handled.
+template, a `{{token}}` chip, and a ready-to-edit data object in one click.
+Numbers stay numbers, strings stay strings, and Chrome's `$'...'` quoting is
+handled.
 
 ### Example: iterate over a list
+
+Set `token` once in the shared-variable chips, then put the changing data below.
 
 curl:
 ```
@@ -107,16 +117,17 @@ curl -X DELETE https://api.example.com/accounts/history/{{id}} \
   -d '{"note": "cleanup"}'
 ```
 
-variables:
+data:
 ```json
 [
-  { "id": "101", "token": "eyJ..." },
-  { "id": "102", "token": "eyJ..." },
-  { "id": "103", "token": "eyJ..." }
+  { "id": "101" },
+  { "id": "102" },
+  { "id": "103" }
 ]
 ```
 
-That fires three DELETEs, one per `id`, with the configured delay between them.
+That fires three DELETEs, one per `id`, each reusing the shared `{{token}}`,
+with the configured delay between them.
 
 ## Supported curl flags
 

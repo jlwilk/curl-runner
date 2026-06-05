@@ -235,7 +235,7 @@ const sleep = (ms, signal) =>
   });
 
 app.post("/api/run", async (req, res) => {
-  const { curl, vars, delayMs = 1000, repeat = false, dryRun = false } = req.body || {};
+  const { curl, vars, delayMs = 1000, repeat = false, dryRun = false, globals = {} } = req.body || {};
 
   // Stream NDJSON: one JSON object per line, flushed as it happens.
   res.setHeader("Content-Type", "application/x-ndjson");
@@ -286,7 +286,8 @@ app.post("/api/run", async (req, res) => {
   do {
     for (let i = 0; i < varSets.length && !stopped; i++) {
       runNo++;
-      const finalReq = applyVars(parsedReq, varSets[i]);
+      // Shared globals provide defaults; per-row data overrides on key clash.
+      const finalReq = applyVars(parsedReq, { ...globals, ...varSets[i] });
 
       // Dry run: show the fully-substituted request without sending it.
       if (dryRun) {

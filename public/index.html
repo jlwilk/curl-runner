@@ -62,6 +62,29 @@
   .run .meta .code.err { color: var(--err); }
   .run pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: #cfd6e4; }
   .note { color: var(--muted); font-size: 11px; margin-top: 6px; }
+  /* Shared-variable chips */
+  #globalsBar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 14px; padding: 4px 10px;
+    font-family: var(--mono); font-size: 12px; cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip .k { color: var(--accent); }
+  .chip .v { color: var(--muted); }
+  .chip.expired .k { color: var(--err); }
+  #addGlobal { background: transparent; border: 1px dashed var(--border); color: var(--muted);
+    border-radius: 14px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-weight: 500; }
+  #addGlobal:hover { border-color: var(--accent); color: var(--accent); }
+  #globalEditor { margin-top: 10px; display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+  #globalEditor input, #globalEditor textarea { background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-family: var(--mono); font-size: 13px; }
+  #globalEditor button { padding: 7px 12px; font-size: 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; }
+  #gSave { color: var(--accent); border-color: var(--accent); }
+  #gDelete { color: var(--err); border-color: var(--err); }
+  #tooltip { position: fixed; z-index: 50; max-width: 460px; max-height: 220px; overflow: hidden;
+    background: #0b0d12; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--text); word-break: break-all;
+    white-space: pre-wrap; box-shadow: 0 6px 20px rgba(0,0,0,.55); pointer-events: none; }
 </style>
 </head>
 <body>
@@ -71,6 +94,22 @@
   </header>
   <div class="main">
     <div class="col">
+      <div class="field" id="globalsField">
+        <label style="display:flex; align-items:center; gap:10px;">
+          <span>variables</span>
+          <span style="text-transform:none; letter-spacing:normal; color:var(--muted); font-size:11px; font-weight:400;">shared across every run · hover to reveal, click to edit</span>
+        </label>
+        <div id="globalsBar">
+          <button type="button" id="addGlobal">+ add</button>
+        </div>
+        <div id="globalEditor" style="display:none;">
+          <input type="text" id="gName" placeholder="name" style="max-width:160px;" />
+          <textarea id="gValue" placeholder="value" rows="1" style="flex:1; min-width:220px; min-height:36px;"></textarea>
+          <button type="button" id="gSave">save</button>
+          <button type="button" id="gDelete">delete</button>
+          <button type="button" id="gCancel">cancel</button>
+        </div>
+      </div>
       <div class="field">
         <label for="curl" style="display:flex; align-items:center; gap:10px;">
           <span>curl command</span>
@@ -85,14 +124,14 @@
       </div>
       <div class="field">
         <label for="vars" style="display:flex; align-items:center; gap:10px;">
-          <span>variables (JSON)</span>
+          <span>data (JSON)</span>
           <button type="button" id="prettify" style="margin-left:auto; padding:4px 12px; font-size:12px; background:var(--panel); color:var(--muted); border:1px solid var(--border); text-transform:none; letter-spacing:normal; font-weight:500;">✦ prettify</button>
           <button type="button" id="upload" style="padding:4px 12px; font-size:12px; background:var(--panel); color:var(--muted); border:1px solid var(--border); text-transform:none; letter-spacing:normal; font-weight:500;">⤓ upload .json / .csv</button>
           <span id="fileName" style="font-size:11px; color:var(--muted); text-transform:none; letter-spacing:normal;"></span>
         </label>
         <input type="file" id="fileInput" accept=".json,application/json,.csv,text/csv" style="display:none;" />
         <textarea id="vars" spellcheck="false" placeholder='{ "id": "123", "token": "abc", "name": "Widget" }'></textarea>
-        <div class="note">Object = repeat the same request. Array of objects = one run per element.</div>
+        <div class="note">Merged with the shared variables above (these win on a name clash). Empty or an object = one run; array of objects = one run per element.</div>
       </div>
       <div class="controls">
         <div class="row" style="flex:0 0 auto;">
@@ -218,7 +257,7 @@ async function start(dryRun = false) {
   runResults = [];
   $("download").disabled = true;
   $("statusLine").textContent = dryRun ? "previewing…" : "running…";
-  if (!dryRun) preflightTokenWarnings($("vars").value).forEach((w) => note(w, true));
+  if (!dryRun) [...preflightTokenWarnings($("vars").value), ...globalsTokenWarnings()].forEach((w) => note(w, true));
   controller = new AbortController();
   let dryCount = 0;
   try {
@@ -232,6 +271,7 @@ async function start(dryRun = false) {
         delayMs: Number($("delay").value),
         repeat: $("repeat").checked,
         dryRun,
+        globals,
       }),
     });
     // Read the NDJSON stream line by line.
@@ -279,6 +319,98 @@ function downloadResults() {
   a.download = "curl-runner-results.csv";
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// --- shared variables (globals) -------------------------------------------
+let globals = {};
+
+function looksLikeJwt(v) { return typeof v === "string" && v.split(".").length === 3; }
+function chipPreview(v) {
+  if (v === "" || v == null) return "(empty)";
+  const s = String(v);
+  return s.length > 16 ? s.slice(0, 14) + "…" : s;
+}
+// If a value is a JWT, return its expiry hint and whether it's expired.
+function jwtHint(v) {
+  if (!looksLikeJwt(v)) return { hint: "", expired: false };
+  const claims = decodeJwt(v);
+  if (!claims?.exp) return { hint: "", expired: false };
+  const e = fmtExpiry(claims.exp);
+  return { hint: " · " + e.text, expired: e.expired };
+}
+
+let tipEl = null;
+function showTip(ev, label, value) {
+  hideTip();
+  tipEl = document.createElement("div");
+  tipEl.id = "tooltip";
+  tipEl.textContent = `${label}\n${value}`;
+  document.body.appendChild(tipEl);
+  moveTip(ev);
+}
+function moveTip(ev) {
+  if (!tipEl) return;
+  const pad = 14;
+  tipEl.style.left = Math.min(ev.clientX + pad, window.innerWidth - tipEl.offsetWidth - pad) + "px";
+  tipEl.style.top = (ev.clientY + pad) + "px";
+}
+function hideTip() { if (tipEl) { tipEl.remove(); tipEl = null; } }
+
+function renderGlobals() {
+  const bar = $("globalsBar"), add = $("addGlobal");
+  bar.querySelectorAll(".chip").forEach((c) => c.remove());
+  for (const [k, v] of Object.entries(globals)) {
+    const { hint, expired } = jwtHint(v);
+    const chip = document.createElement("span");
+    chip.className = "chip" + (expired ? " expired" : "");
+    chip.innerHTML = `<span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(chipPreview(v))}</span>`;
+    chip.addEventListener("mouseenter", (e) => showTip(e, `${k}${hint}`, v));
+    chip.addEventListener("mousemove", moveTip);
+    chip.addEventListener("mouseleave", hideTip);
+    chip.addEventListener("click", () => { hideTip(); openEditor(k); });
+    bar.insertBefore(chip, add);
+  }
+}
+
+function openEditor(key) {
+  $("globalEditor").style.display = "flex";
+  $("gName").value = key || "";
+  $("gValue").value = key ? globals[key] : "";
+  $("gName").dataset.orig = key || "";
+  $("gDelete").style.display = key ? "" : "none";
+  (key ? $("gValue") : $("gName")).focus();
+}
+function closeEditor() {
+  $("globalEditor").style.display = "none";
+  $("gName").value = ""; $("gValue").value = ""; $("gName").dataset.orig = "";
+}
+$("addGlobal").addEventListener("click", () => openEditor(""));
+$("gSave").addEventListener("click", () => {
+  const name = $("gName").value.trim();
+  if (!name) { $("gName").focus(); return; }
+  const orig = $("gName").dataset.orig;
+  if (orig && orig !== name) delete globals[orig];
+  globals[name] = $("gValue").value;
+  renderGlobals(); saveState(); closeEditor();
+});
+$("gDelete").addEventListener("click", () => {
+  const orig = $("gName").dataset.orig;
+  if (orig) delete globals[orig];
+  renderGlobals(); saveState(); closeEditor();
+});
+$("gCancel").addEventListener("click", closeEditor);
+
+// Warn about expired-JWT globals (companion to the data-box check).
+function globalsTokenWarnings() {
+  const warns = [];
+  for (const [k, v] of Object.entries(globals)) {
+    if (!looksLikeJwt(v)) continue;
+    const claims = decodeJwt(v);
+    if (claims?.exp && fmtExpiry(claims.exp).expired) {
+      warns.push(`⚠ variable "${k}" is an expired JWT — ${fmtExpiry(claims.exp).text}`);
+    }
+  }
+  return warns;
 }
 
 // --- analyze: templatize a pasted curl ------------------------------------
@@ -362,7 +494,7 @@ function analyzeCurl() {
       const h = tokens[++i];
       const m = /^(authorization:\s*bearer\s+)(\S+)/i.exec(h.value);
       if (m) {
-        vars.token = m[2];
+        globals.token = m[2]; // token lives in the shared-variables bar, not the data box
         repls.push({ start: h.start, end: h.end, text: `'${h.value.replace(m[2], "{{token}}")}'` });
         const claims = decodeJwt(m[2]);
         if (claims?.exp) {
@@ -427,6 +559,8 @@ function analyzeCurl() {
   const counts = [nUrl && `${nUrl} url var(s)`, nBody && `${nBody} body field(s)`].filter(Boolean).join(", ");
   setVarsNote(`analyzed${counts ? ` · ${counts}` : ""}`);
   setCurlNote(tokenInfo || "templatized", expired);
+  renderGlobals();
+  saveState();
 }
 $("analyze").addEventListener("click", analyzeCurl);
 
@@ -437,13 +571,14 @@ $("clear").addEventListener("click", () => ($("output").innerHTML = ""));
 $("download").addEventListener("click", downloadResults);
 
 // Persist inputs across refreshes so a reload never wipes a pasted curl.
-const LS = { curl: "cr.curl", vars: "cr.vars", delay: "cr.delay", repeat: "cr.repeat" };
+const LS = { curl: "cr.curl", vars: "cr.vars", delay: "cr.delay", repeat: "cr.repeat", globals: "cr.globals" };
 function saveState() {
   try {
     localStorage.setItem(LS.curl, $("curl").value);
     localStorage.setItem(LS.vars, $("vars").value);
     localStorage.setItem(LS.delay, $("delay").value);
     localStorage.setItem(LS.repeat, $("repeat").checked ? "1" : "");
+    localStorage.setItem(LS.globals, JSON.stringify(globals));
   } catch { /* storage unavailable — ignore */ }
 }
 function restoreState() {
@@ -452,6 +587,8 @@ function restoreState() {
     const v = localStorage.getItem(LS.vars); if (v !== null) $("vars").value = v;
     const d = localStorage.getItem(LS.delay); if (d) $("delay").value = d;
     $("repeat").checked = !!localStorage.getItem(LS.repeat);
+    try { globals = JSON.parse(localStorage.getItem(LS.globals) || "{}"); } catch { globals = {}; }
+    renderGlobals();
     autoGrow($("curl")); autoGrow($("vars"));
   } catch { /* ignore */ }
 }
