@@ -1,8 +1,8 @@
 # curl runner
 
-Paste a `curl` command, fill in `{{variables}}`, and run it on a loop with a
-delay between runs. Responses stream into the output box live. Start and Stop
-whenever you want.
+Paste a `curl` command, fill in `{{variables}}`, and run it once or a set
+number of times, with a delay between runs. Responses stream into the output
+box live. Start and Stop whenever you want.
 
 It runs the request **server-side** (a tiny Node process), so there are no
 CORS headaches the way there would be firing requests straight from a browser.
@@ -14,23 +14,29 @@ CORS headaches the way there would be firing requests straight from a browser.
 - **Paste any curl** — `{{placeholders}}` work in the URL, headers, or body.
   Runs server-side, so there are no CORS limits.
 - **Shared variables (chips)** — single values reused across every run (token,
-  base URL) live in a chip bar at the top: **hover to reveal** the value (and a
-  JWT's time-to-expiry), **click to edit**, **+ add** your own.
+  base URL) live in a chip bar at the top: **hover to reveal** the value, **click
+  to edit**, **+ add** your own. A JWT chip shows a **live countdown** to expiry.
 - **Per-run data (JSON)** — the data that changes each request. A JSON *object*
   (or empty) runs once; a JSON *array* runs once per element (one request per
   row). Data is merged with the shared variables, and wins on a name clash.
-- **Loop & delay** — set a delay between runs and optionally loop forever
-  (polling). **Start / Stop** at any time; Stop aborts mid-loop instantly.
+- **Runs & delay** — set a delay between runs and, for a single data set, how
+  many times to run it (the box hides when the data already has multiple rows,
+  since the rows set the count). **Start / Stop** any time; Stop aborts instantly.
+- **Undefined vars are dropped** — if a `{{var}}` isn't provided by the data or a
+  chip, it's omitted from the request (the query param, header, or JSON body
+  field is removed) rather than sent literally, and you get a warning.
 - **Live streaming output** — each response appears as it returns, with status,
   timing, and pretty-printed JSON. A run ends with an `X ok / Y failed` summary.
+- **`</>` Raw view** — toggle any result to show the exact request that was sent
+  (as a reconstructed curl) and the unprettified raw response.
 - **⌁ Dry run** — preview the fully-substituted requests (method, URL, headers,
   body) without sending them — handy before firing a batch of `DELETE`s.
 - **Download results** — export the last run's per-request results (status,
   timing, response) to CSV.
 - **Pre-flight token check** — on Start, warns if a variable is an
   already-expired JWT (so you refresh before getting a wall of 401s).
-- **Auto-save** — your curl, variables, delay, and loop setting persist in the
-  browser, so a refresh never wipes a pasted curl.
+- **Auto-save** — your curl, variables, delay, run count, and view settings
+  persist in the browser, so a refresh never wipes a pasted curl.
 - **✦ Analyze a raw browser curl** — one click pulls the `Bearer` token into a
   `{{token}}` chip (with JWT time-to-expiry), and turns JSON body fields and URL
   query params into `{{variables}}` with example values in the data box.
@@ -80,15 +86,19 @@ Node 20+ required for the non-Docker path.
    click to edit, **+ add** to create one. Analyze drops the Bearer token here.
 3. **data (JSON)** — the values that change per request, merged with the shared
    variables above (data wins on a name clash):
-   - Empty, or an **object** (`{ "id": "1" }`), runs once. Pair it with
-     **loop forever** to poll an endpoint.
+   - Empty, or an **object** (`{ "id": "1" }`), runs once — set **runs** to repeat
+     it (e.g. to poll an endpoint).
    - An **array** (`[ { "id": "1" }, { "id": "2" } ]`) runs **once per element**,
      iterating your data.
    - **Upload** a `.json` file, or a `.csv` whose header row becomes the keys —
      each data row turns into one object in the array. The box shows the loaded
      filename and item count.
-4. **delay (ms)** — wait between runs.
-5. **Start / Stop** — Stop aborts mid-loop immediately.
+   - Any `{{var}}` not provided here or by a chip is **dropped** from the request.
+4. **delay (ms)** and **runs** — wait between runs, and how many times to run a
+   single data set (the runs box hides when the data has multiple rows).
+5. **Start / Stop** — Stop aborts mid-run immediately. Use **⌁ Dry run** to
+   preview requests without sending, and **`</>` raw** to inspect the exact
+   request and raw response of any result.
 
 ### Analyze: turn a raw curl into a template
 
