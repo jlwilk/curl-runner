@@ -97,7 +97,8 @@
 <body>
   <header>
     <h1>curl runner</h1>
-    <span>paste a curl, fill in {{variables}}, run it on a loop</span>
+    <span>paste a curl, fill in {{variables}}, run it once or N times</span>
+    <button type="button" id="reset" style="margin-left:auto; align-self:center; padding:5px 14px; font-size:12px; background:var(--panel); color:var(--muted); border:1px solid var(--border); border-radius:6px; cursor:pointer;">↺ reset all</button>
   </header>
   <div class="main">
     <div class="col">
@@ -143,7 +144,7 @@
       <div class="controls">
         <div class="field" style="max-width:120px; padding:0;">
           <label for="delay">delay (ms)</label>
-          <input type="number" id="delay" value="1000" min="0" step="100" />
+          <input type="number" id="delay" value="50" min="0" step="10" />
         </div>
         <div class="field" id="runsField" style="max-width:100px; padding:0;">
           <label for="runs">runs</label>
@@ -653,6 +654,7 @@ function analyzeCurl() {
   // Seed the variables box with the discovered example values.
   $("vars").value = JSON.stringify(vars, null, 2);
   const counts = [nUrl && `${nUrl} url var(s)`, nBody && `${nBody} body field(s)`].filter(Boolean).join(", ");
+  $("runs").value = "1"; // fresh curl — don't carry over a previous run count
   setVarsNote(`analyzed${counts ? ` · ${counts}` : ""}`);
   setCurlNote(tokenInfo || "templatized", expired);
   renderGlobals();
@@ -670,6 +672,27 @@ $("raw").addEventListener("click", () => {
   $("raw").classList.toggle("on", on);
   saveState();
 });
+
+// Wipe everything back to a clean slate (curl, data, variables, settings, output).
+function resetAll() {
+  if (!confirm("Clear everything — curl, data, variables, output, and settings?")) return;
+  $("curl").value = "";
+  $("vars").value = "";
+  $("delay").value = "50";
+  $("runs").value = "1";
+  globals = {};
+  closeEditor();
+  $("output").innerHTML = "";
+  $("download").disabled = true;
+  $("output").classList.remove("show-raw");
+  $("raw").classList.remove("on");
+  setCurlNote("");
+  setVarsNote("");        // also refits the data box and updates the runs visibility
+  renderGlobals();
+  autoGrow($("curl"));
+  saveState();
+}
+$("reset").addEventListener("click", resetAll);
 
 // Persist inputs across refreshes so a reload never wipes a pasted curl.
 const LS = { curl: "cr.curl", vars: "cr.vars", delay: "cr.delay", runs: "cr.runs", globals: "cr.globals", raw: "cr.raw" };
