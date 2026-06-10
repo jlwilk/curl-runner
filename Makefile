@@ -6,7 +6,7 @@ export PORT
 
 .DEFAULT_GOAL := help
 
-.PHONY: help local install docker up down logs clean
+.PHONY: help local install test docker up down logs clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -20,6 +20,9 @@ install: node_modules ## Install Node dependencies
 node_modules: package.json
 	npm install
 	@touch node_modules
+
+test: install ## Run the test suite
+	node --test
 
 docker: up ## Alias for `up`
 

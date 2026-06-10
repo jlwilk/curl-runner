@@ -160,6 +160,18 @@ ignored. Unknown flags are skipped rather than erroring.
   `$.id` from a create call and feed it into a follow-up activate call). Enables
   login-then-call, create-then-verify, and pagination flows.
 
+## Development
+
+```bash
+make local    # run with hot-reload
+make test     # run the test suite (node --test, no extra deps)
+```
+
+Layout: `server.js` is the Express app (streaming run loop), `public/app.js` is
+the browser UI, and `public/lib.js` holds the shared pure logic (curl parsing,
+variable substitution, JWT, CSV) imported by **both** — one tokenizer, no
+client/server drift. Tests live in `test/` and run in CI on every push.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
