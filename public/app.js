@@ -33,10 +33,13 @@ function addRun({ run, status, ok, ms, method, url, body, error, reqHeaders, req
   // (the server sends 0), so it lands in the ERR bucket instead.
   div.dataset.status = status === 0 ? "ERR" : String(status);
   const codeClass = ok ? "ok" : "err";
-  const display = error ? `ERR ${error}` : status;
+  // The method comes from the pasted curl's -X, and a fetch error quotes it
+  // back, so both need escaping just like the URL does — otherwise a curl
+  // carrying a "<" renders as markup instead of text.
+  const display = escapeHtml(error ? `ERR ${error}` : status);
   div.innerHTML =
     `<div class="meta">#${run} <span class="code ${codeClass}">${display}</span> ` +
-    `· ${ms}ms · ${method} ${escapeHtml(url)}</div>`;
+    `· ${ms}ms · ${escapeHtml(method)} ${escapeHtml(url)}</div>`;
   // Pretty view (default).
   if (body) {
     const pre = document.createElement("pre");
@@ -217,7 +220,7 @@ function renderDry(msg) {
   div.className = "run";
   div.style.borderLeftColor = "var(--accent)";
   const hdrs = Object.entries(msg.headers || {}).map(([k, v]) => `${k}: ${v}`).join("\n");
-  div.innerHTML = `<div class="meta">#${msg.run} <span class="code">DRY</span> · ${msg.method} ${escapeHtml(msg.url)}</div>`;
+  div.innerHTML = `<div class="meta">#${msg.run} <span class="code">DRY</span> · ${escapeHtml(msg.method)} ${escapeHtml(msg.url)}</div>`;
   const pre = document.createElement("pre");
   pre.textContent = (hdrs ? hdrs + "\n" : "") + (msg.body ? "\n" + pretty(msg.body) : "");
   div.appendChild(pre);
