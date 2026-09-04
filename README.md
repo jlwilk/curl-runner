@@ -186,6 +186,9 @@ the browser UI, and `public/lib.js` holds the shared pure logic (curl parsing,
 variable substitution, JWT, CSV) imported by **both** — one tokenizer, no
 client/server drift. Tests live in `test/` and run in CI on every push.
 
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md), which spells out
+the one non-obvious rule (`lib.js` has to run in both Node and the browser).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
@@ -196,3 +199,7 @@ This tool executes whatever curl you paste, against whatever host it names,
 with whatever credentials are in it. Run it **locally** or on a trusted,
 access-controlled host — do not expose it to the open internet. Don't commit
 real tokens; paste them into the variables box at runtime.
+
+[SECURITY.md](SECURITY.md) covers what counts as a vulnerability here (and what
+doesn't, since running arbitrary requests is the whole point), and how to report
+one privately.
