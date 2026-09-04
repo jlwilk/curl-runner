@@ -1,6 +1,6 @@
 {
   "name": "curl-runner",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Paste a curl command, fill in {{variables}}, and run it on a loop with a delay. Streams responses live.",
   "license": "MIT",
   "type": "module",
