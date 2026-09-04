@@ -1,5 +1,8 @@
 # curl runner
 
+[![test](https://github.com/jlwilk/curl-runner/actions/workflows/test.yml/badge.svg)](https://github.com/jlwilk/curl-runner/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Paste a `curl` command, fill in `{{variables}}`, and run it once or a set
 number of times, with a delay between runs. Responses stream into the output
 box live. Start and Stop whenever you want.
@@ -7,7 +10,7 @@ box live. Start and Stop whenever you want.
 It runs the request **server-side** (a tiny Node process), so there are no
 CORS headaches the way there would be firing requests straight from a browser.
 
-![one screen: curl box, variables JSON, delay, start/stop, live output]
+![curl runner in one screen: variable chips with a live JWT countdown, a templatized curl, a JSON data array, and four requests streaming into the output pane](docs/screenshot.png)
 
 ## Features
 
@@ -105,6 +108,11 @@ Node 20+ required for the non-Docker path.
    preview requests without sending, the **status dropdown** to narrow the output
    to failures (or one status code), and **`</>` raw** to inspect the exact
    request and raw response of any result. Each Start begins a fresh output pane.
+
+The same run, narrowed to what went wrong. The run header and summary stay put,
+so the context doesn't disappear along with the requests that passed:
+
+![the output filter set to "failed (1)", showing only the 401 from the run above](docs/screenshot-failures.png)
 
 ### Analyze: turn a raw curl into a template
 
