@@ -27,6 +27,11 @@ CORS headaches the way there would be firing requests straight from a browser.
   field is removed) rather than sent literally, and you get a warning.
 - **Live streaming output** — each response appears as it returns, with status,
   timing, and pretty-printed JSON. A run ends with an `X ok / Y failed` summary.
+- **Filter the output** — a status dropdown over the results: the `failed` / `ok`
+  groups, or a single code (`401`, `500`, or `ERR` for network failures), each
+  with a live count. The run header and `X ok / Y failed` summary stay visible so
+  a filtered pane keeps its context, and the filter **sticks across runs** — set
+  it to `failed` once and every re-run shows you just the failures.
 - **`</>` Raw view** — toggle any result to show the exact request that was sent
   (as a reconstructed curl) and the unprettified raw response.
 - **⌁ Dry run** — preview the fully-substituted requests (method, URL, headers,
@@ -97,8 +102,9 @@ Node 20+ required for the non-Docker path.
 4. **delay (ms)** and **runs** — wait between runs, and how many times to run a
    single data set (the runs box hides when the data has multiple rows).
 5. **Start / Stop** — Stop aborts mid-run immediately. Use **⌁ Dry run** to
-   preview requests without sending, and **`</>` raw** to inspect the exact
-   request and raw response of any result.
+   preview requests without sending, the **status dropdown** to narrow the output
+   to failures (or one status code), and **`</>` raw** to inspect the exact
+   request and raw response of any result. Each Start begins a fresh output pane.
 
 ### Analyze: turn a raw curl into a template
 

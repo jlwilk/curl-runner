@@ -6,6 +6,7 @@ import {
   toVarSets, explainJsonError,
   looksLikeJwt, decodeJwt, fmtExpiry, expiryParts,
   parseCSV, csvToObjects, reqToCurl,
+  matchesFilter, filterBuckets,
 } from "../public/lib.js";
 
 const BS = "\\"; // a literal backslash, kept out of string literals for clarity
@@ -236,4 +237,89 @@ test("reqToCurl: shell-escapes single quotes so it's copy-pasteable", () => {
   assert.match(out, /-H 'X-H: v'/);
   // the apostrophe must be escaped as '\''
   assert.ok(out.includes(`'{"note":"Let'${BS}''s go"}'`));
+});
+
+// --- output filtering -------------------------------------------------------
+
+test("matchesFilter: all, ok, and failed groups", () => {
+  // "all" keeps everything, including network errors.
+  for (const s of [0, 200, 204, 301, 404, 500]) {
+    assert.equal(matchesFilter(s, "all"), true);
+  }
+  // "ok" is the 2xx range only — same rule as fetch's resp.ok.
+  assert.equal(matchesFilter(200, "ok"), true);
+  assert.equal(matchesFilter(299, "ok"), true);
+  assert.equal(matchesFilter(301, "ok"), false);
+  assert.equal(matchesFilter(500, "ok"), false);
+  // "failed" is everything that isn't 2xx, network errors included.
+  assert.equal(matchesFilter(500, "failed"), true);
+  assert.equal(matchesFilter(404, "failed"), true);
+  assert.equal(matchesFilter(301, "failed"), true);
+  assert.equal(matchesFilter(0, "failed"), true);
+  assert.equal(matchesFilter(200, "failed"), false);
+});
+
+test("matchesFilter: a single status code, and ERR for network failures", () => {
+  assert.equal(matchesFilter(500, "500"), true);
+  assert.equal(matchesFilter(200, "500"), false);
+  // status 0 is what the server sends when fetch itself threw.
+  assert.equal(matchesFilter(0, "ERR"), true);
+  assert.equal(matchesFilter(500, "ERR"), false);
+  // a network error is never counted as a status code
+  assert.equal(matchesFilter(0, "0"), false);
+});
+
+test("filterBuckets: groups first, then status codes ascending with ERR last", () => {
+  const results = [
+    { status: 200 }, { status: 500 }, { status: 200 },
+    { status: 0 }, { status: 401 }, { status: 500 }, { status: 200 },
+  ];
+  assert.deepEqual(filterBuckets(results), [
+    { value: "all", label: "all (7)", count: 7, group: null },
+    { value: "failed", label: "failed (4)", count: 4, group: "groups" },
+    { value: "ok", label: "ok (3)", count: 3, group: "groups" },
+    { value: "200", label: "200 (3)", count: 3, group: "status" },
+    { value: "401", label: "401 (1)", count: 1, group: "status" },
+    { value: "500", label: "500 (2)", count: 2, group: "status" },
+    { value: "ERR", label: "ERR (1)", count: 1, group: "status" },
+  ]);
+});
+
+test("filterBuckets: omits buckets that would be empty", () => {
+  // A clean run offers no "failed" entry to pick.
+  assert.deepEqual(filterBuckets([{ status: 200 }, { status: 204 }]), [
+    { value: "all", label: "all (2)", count: 2, group: null },
+    { value: "ok", label: "ok (2)", count: 2, group: "groups" },
+    { value: "200", label: "200 (1)", count: 1, group: "status" },
+    { value: "204", label: "204 (1)", count: 1, group: "status" },
+  ]);
+  // Before a run there is nothing to filter but "all".
+  assert.deepEqual(filterBuckets([]), [
+    { value: "all", label: "all (0)", count: 0, group: null },
+  ]);
+});
+
+test("filterBuckets: keeps the active filter selectable when its bucket is empty", () => {
+  // A sticky "failed" must survive a run where nothing failed — otherwise the
+  // selection silently snaps back to "all" the moment the pane refreshes.
+  assert.deepEqual(filterBuckets([{ status: 200 }], "failed"), [
+    { value: "all", label: "all (1)", count: 1, group: null },
+    { value: "failed", label: "failed (0)", count: 0, group: "groups" },
+    { value: "ok", label: "ok (1)", count: 1, group: "groups" },
+    { value: "200", label: "200 (1)", count: 1, group: "status" },
+  ]);
+  // Same for a status code this run didn't produce — and it still sorts by code.
+  assert.deepEqual(filterBuckets([{ status: 200 }], "500"), [
+    { value: "all", label: "all (1)", count: 1, group: null },
+    { value: "ok", label: "ok (1)", count: 1, group: "groups" },
+    { value: "200", label: "200 (1)", count: 1, group: "status" },
+    { value: "500", label: "500 (0)", count: 0, group: "status" },
+  ]);
+  // An emptied pane still offers whatever filter is active.
+  assert.deepEqual(filterBuckets([], "ERR"), [
+    { value: "all", label: "all (0)", count: 0, group: null },
+    { value: "ERR", label: "ERR (0)", count: 0, group: "status" },
+  ]);
+  // "all" forces nothing extra.
+  assert.deepEqual(filterBuckets([{ status: 200 }], "all").map((b) => b.value), ["all", "ok", "200"]);
 });

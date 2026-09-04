@@ -67,6 +67,13 @@
   #output.show-raw .run .pretty { display: none; }
   #output.show-raw .run .raw { display: block; }
   #raw.on { color: var(--accent); border-color: var(--accent); }
+  /* Output filter: narrow the pane to a status group or a single code */
+  #filter { background: var(--panel); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+  #filter:focus { outline: none; border-color: var(--accent); }
+  /* Highlighted whenever a filter is active, so a short pane never looks like a short run */
+  #filter.on { color: var(--accent); border-color: var(--accent); }
+  #emptyFilter { color: var(--muted); font-family: var(--mono); font-size: 12.5px; padding: 4px 0 4px 10px; }
   .note { color: var(--muted); font-size: 11px; margin-top: 6px; }
   /* Shared-variable chips */
   #globalsBar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -163,6 +170,7 @@
     <div class="col">
       <div class="field" style="border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px;">
         <label style="margin:0;">output</label>
+        <select id="filter" title="filter the output by status"><option value="all">all (0)</option></select>
         <button id="raw" style="margin-left:auto; padding:4px 12px; font-size:12px; background:var(--panel); color:var(--muted); border:1px solid var(--border);">&lt;/&gt; raw</button>
         <button id="download" disabled style="padding:4px 12px; font-size:12px; background:var(--panel); color:var(--muted); border:1px solid var(--border);">⤓ results</button>
         <button id="clear" style="padding:4px 12px; font-size:12px; background:var(--panel); color:var(--muted); border:1px solid var(--border);">clear</button>

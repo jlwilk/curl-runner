@@ -4,6 +4,7 @@ import {
   tokenizeSpans, DATA_FLAGS,
   looksLikeJwt, decodeJwt, fmtExpiry, expiryParts,
   csvToObjects, reqToCurl,
+  matchesFilter, filterBuckets,
 } from "./lib.js";
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +29,9 @@ function setRunning(running) {
 function addRun({ run, status, ok, ms, method, url, body, error, reqHeaders, reqBody }) {
   const div = document.createElement("div");
   div.className = "run " + (ok ? "ok" : "err");
+  // Tag the row for the output filter. A network error carries no status code
+  // (the server sends 0), so it lands in the ERR bucket instead.
+  div.dataset.status = status === 0 ? "ERR" : String(status);
   const codeClass = ok ? "ok" : "err";
   const display = error ? `ERR ${error}` : status;
   div.innerHTML =
@@ -50,6 +54,13 @@ function addRun({ run, status, ok, ms, method, url, body, error, reqHeaders, req
 
   const out = $("output");
   out.appendChild(div);
+  // Honour the active filter for the row we just added, and keep the dropdown's
+  // counts and the "nothing matches" note in step as the run streams in.
+  paneResults.push({ status: statusOf(div) });
+  applyFilterTo(div);
+  if (!div.hidden) shownCount++;
+  updateEmptyNote();
+  refreshFilterOptions();
   out.scrollTop = out.scrollHeight;
 }
 
@@ -66,6 +77,91 @@ function note(msg, isError) {
   div.innerHTML = `<div class="meta">${escapeHtml(msg)}</div>`;
   $("output").appendChild(div);
 }
+
+// --- output filtering -----------------------------------------------------
+// The filter narrows what the output pane shows. Its counts describe what's in
+// the pane, which `clear` can empty independently of `runResults` (kept for the
+// CSV export), so the tally lives here rather than being derived from that.
+let paneResults = [];
+
+// The numeric status a rendered row represents (0 for the ERR bucket).
+const statusOf = (el) => (el.dataset.status === "ERR" ? 0 : Number(el.dataset.status));
+
+function applyFilterTo(el) {
+  el.hidden = !matchesFilter(statusOf(el), $("filter").value);
+}
+
+// How many result rows the active filter is currently showing. Tracked rather
+// than recounted so a streaming run stays O(1) per result.
+let shownCount = 0;
+
+// Say so rather than going blank — e.g. still filtered to "failed" on a run
+// where nothing failed. Sits where the rows would have been, so the run header
+// above it and the summary that follows still frame it.
+function updateEmptyNote() {
+  $("emptyFilter")?.remove();
+  if (!paneResults.length || shownCount) return;
+  const div = document.createElement("div");
+  div.id = "emptyFilter";
+  div.textContent = `no results match "${$("filter").value}"`;
+  $("output").appendChild(div);
+}
+
+// Re-apply the filter across the whole pane. Only result rows carry a
+// data-status, so notes, warnings, the run header and dry-run previews always
+// stay visible — that's the context you want while looking at failures.
+function applyFilter() {
+  shownCount = 0;
+  $("output").querySelectorAll(".run[data-status]").forEach((el) => {
+    applyFilterTo(el);
+    if (!el.hidden) shownCount++;
+  });
+  $("filter").classList.toggle("on", $("filter").value !== "all");
+  updateEmptyNote();
+}
+
+// Sync the dropdown with the buckets currently in the pane. When the set of
+// buckets is unchanged we only retitle the existing options, so a dropdown the
+// user has open mid-run doesn't collapse under them.
+function refreshFilterOptions() {
+  const sel = $("filter");
+  const buckets = filterBuckets(paneResults, sel.value);
+  const opts = [...sel.querySelectorAll("option")];
+  if (opts.length === buckets.length && opts.every((o, i) => o.value === buckets[i].value)) {
+    opts.forEach((o, i) => { o.textContent = buckets[i].label; });
+    return;
+  }
+
+  const wanted = sel.value;
+  sel.textContent = "";
+  let group, holder = sel;
+  for (const b of buckets) {
+    if (b.group !== group) {
+      group = b.group;
+      holder = sel;
+      if (group) {
+        holder = document.createElement("optgroup");
+        holder.label = group;
+        sel.appendChild(holder);
+      }
+    }
+    const opt = document.createElement("option");
+    opt.value = b.value;
+    opt.textContent = b.label;
+    holder.appendChild(opt);
+  }
+  // Keep the selection if its bucket survived, otherwise fall back to all.
+  sel.value = buckets.some((b) => b.value === wanted) ? wanted : "all";
+}
+
+// Reset the pane's filter state — used by clear and reset all.
+function resetFilter() {
+  paneResults = [];
+  $("filter").value = "all";
+  refreshFilterOptions();
+  applyFilter();
+}
+$("filter").addEventListener("change", applyFilter);
 
 let runResults = [];
 function runSummary() {
@@ -132,6 +228,13 @@ function renderDry(msg) {
 async function start(dryRun = false) {
   setRunning(true);
   runResults = [];
+  // Each run starts with a fresh pane, keeping whatever filter you had set: the
+  // counts then describe this run, and a sticky code filter can't leave rows
+  // from an earlier run sitting on screen as if they belonged to this one.
+  $("output").innerHTML = "";
+  paneResults = [];
+  refreshFilterOptions();
+  applyFilter();
   $("download").disabled = true;
   $("statusLine").textContent = dryRun ? "previewing…" : "running…";
   // Warn about undefined {{vars}} on both runs and previews; token-expiry only
@@ -410,7 +513,7 @@ $("analyze").addEventListener("click", analyzeCurl);
 $("start").addEventListener("click", () => start(false));
 $("dry").addEventListener("click", () => start(true));
 $("stop").addEventListener("click", () => controller && controller.abort());
-$("clear").addEventListener("click", () => ($("output").innerHTML = ""));
+$("clear").addEventListener("click", () => { $("output").innerHTML = ""; resetFilter(); });
 $("download").addEventListener("click", downloadResults);
 $("raw").addEventListener("click", () => {
   const on = $("output").classList.toggle("show-raw");
@@ -428,6 +531,7 @@ function resetAll() {
   globals = {};
   closeEditor();
   $("output").innerHTML = "";
+  resetFilter();
   $("download").disabled = true;
   $("output").classList.remove("show-raw");
   $("raw").classList.remove("on");

@@ -364,3 +364,50 @@ export function reqToCurl(method, url, headers, body) {
   if (body) lines.push(`  --data ${shellQuote(body)}`);
   return lines.join(" \\\n");
 }
+
+// --- output filtering ---------------------------------------------------------
+
+// Does a result with this status belong in the current output filter?
+// `status` is the numeric HTTP status, or 0 for a network error (what the
+// server sends when fetch itself threw). Filters are "all", the "ok"/"failed"
+// groups, a bare status code as a string ("500"), or "ERR" for network errors.
+export function matchesFilter(status, filter) {
+  const ok = status >= 200 && status < 300; // same rule as fetch's resp.ok
+  if (filter === "all") return true;
+  if (filter === "ok") return ok;
+  if (filter === "failed") return !ok;
+  if (filter === "ERR") return status === 0;
+  // A network error has no status code, so it never matches a numeric filter.
+  return status !== 0 && String(status) === filter;
+}
+
+// Build the ordered option list for the output filter from the run's results:
+// "all", then the ok/failed groups, then one entry per status code actually
+// seen (ascending, with the ERR bucket for network errors last). Empty buckets
+// are left out, so a clean run offers no "failed" to pick — except for `keep`,
+// the filter currently active, which stays listed (at zero) so a sticky
+// selection isn't silently dropped by a run that produced none of it.
+export function filterBuckets(results, keep = "all") {
+  const codes = new Map(); // status code (or "ERR") -> count
+  let ok = 0;
+  for (const r of results) {
+    const status = Number(r.status) || 0;
+    if (matchesFilter(status, "ok")) ok++;
+    const key = status === 0 ? "ERR" : String(status);
+    codes.set(key, (codes.get(key) || 0) + 1);
+  }
+  const isGroup = keep === "all" || keep === "ok" || keep === "failed";
+  if (!isGroup && !codes.has(keep)) codes.set(keep, 0);
+
+  const entry = (value, count, group) => ({ value, label: `${value} (${count})`, count, group });
+  const buckets = [entry("all", results.length, null)];
+  const failed = results.length - ok;
+  if (failed > 0 || keep === "failed") buckets.push(entry("failed", failed, "groups"));
+  if (ok > 0 || keep === "ok") buckets.push(entry("ok", ok, "groups"));
+
+  // Numeric codes ascending; ERR has no code, so it sorts to the end.
+  const sorted = [...codes.keys()].sort((a, b) =>
+    a === "ERR" ? 1 : b === "ERR" ? -1 : Number(a) - Number(b));
+  for (const key of sorted) buckets.push(entry(key, codes.get(key), "status"));
+  return buckets;
+}
